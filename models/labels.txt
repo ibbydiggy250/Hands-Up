@@ -1,0 +1,5 @@
+goodbye
+hello
+im_happy
+thank_you
+yes
