@@ -11,8 +11,6 @@ class MediapipeTracker:
             min_tracking_confidence=0.6
         )
         self.mp_draw = mp.solutions.drawing_utils
-
-        # ✅ initialize frame counter properly
         self.frame_count = 0
 
         # Different colors for left and right hands
@@ -22,51 +20,77 @@ class MediapipeTracker:
         }
 
     def extract_keypoints(self, image_bgr):
-        """Extracts (x, y, z) coordinates for both hands and draws them."""
-        image_bgr = cv2.flip(image_bgr, 1)  # selfie view
+        """Extracts keypoints for both hands safely and keeps stream alive."""
+        # Flip for selfie view
+        image_bgr = cv2.flip(image_bgr, 1)
         image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
         results = self.hands.process(image_rgb)
-
-        # ✅ increment frame counter
         self.frame_count += 1
 
         keypoints = []
 
+        # Draw detected hands and collect keypoints
         if results.multi_hand_landmarks and results.multi_handedness:
             for idx, hand_landmarks in enumerate(results.multi_hand_landmarks):
                 handedness = results.multi_handedness[idx].classification[0].label
                 color = self.colors.get(handedness, (0, 255, 255))
 
+                # Draw the hand
                 self.mp_draw.draw_landmarks(
-                    image_bgr, hand_landmarks, self.mp_hands.HAND_CONNECTIONS,
+                    image_bgr,
+                    hand_landmarks,
+                    self.mp_hands.HAND_CONNECTIONS,
                     self.mp_draw.DrawingSpec(color=color, thickness=2, circle_radius=3),
                     self.mp_draw.DrawingSpec(color=color, thickness=2, circle_radius=2)
                 )
 
+                # Save coordinates for this hand
                 for lm in hand_landmarks.landmark:
                     keypoints.extend([lm.x, lm.y, lm.z])
+
+            # ✅ Pad missing hand (ensure shape consistency)
+            num_hands = len(results.multi_hand_landmarks)
+            if num_hands == 1:
+                keypoints.extend([0.0] * (21 * 3))  # pad one missing hand
         else:
+            # ✅ No hands detected — pad both
             keypoints = [0.0] * (21 * 3 * 2)
 
-        # ✅ draw frame counter
-        cv2.putText(
-            image_bgr,
+        # ================== Overlay Info ==================
+        num_hands = len(results.multi_hand_landmarks) if results.multi_hand_landmarks else 0
+
+        # Create a semi-transparent rectangle behind the text for readability
+        overlay = image_bgr.copy()
+        cv2.rectangle(overlay, (0, 0), (350, 110), (0, 0, 0), -1)
+        image_bgr = cv2.addWeighted(overlay, 0.4, image_bgr, 0.6, 0)
+
+        # Text lines
+        lines = [
+            f"Hands detected: {num_hands}",
             f"Frame: {self.frame_count}",
-            (10, 70),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.8,
-            (0, 255, 255),
-            2
-        )
+            "Press 'q' to Quit"
+        ]
+
+        # Draw each line with spacing and outline
+        y0, dy = 40, 30
+        for i, text in enumerate(lines):
+            y = y0 + i * dy
+            # Shadow (black outline)
+            cv2.putText(image_bgr, text, (12, y + 2), cv2.FONT_HERSHEY_SIMPLEX,
+                        0.8, (0, 0, 0), 4, cv2.LINE_AA)
+            # Foreground (colored text)
+            color = (0, 255, 0) if i == 0 else (0, 255, 255)
+            cv2.putText(image_bgr, text, (10, y), cv2.FONT_HERSHEY_SIMPLEX,
+                        0.8, color, 2, cv2.LINE_AA)
 
         return keypoints, image_bgr
 
     def reset_counter(self):
-        """Reset the frame counter to zero."""
         self.frame_count = 0
 
     def close(self):
         self.hands.close()
+
 
 # ---------------------------------------------------------------
 # Standalone test
@@ -81,12 +105,9 @@ if __name__ == "__main__":
         if not success:
             break
 
-        _, flipped_frame = tracker.extract_keypoints(frame)
+        keypoints, output = tracker.extract_keypoints(frame)
+        cv2.imshow("HandsUp - Mediapipe Tracker (Stable)", output)
 
-        cv2.putText(flipped_frame, "Press 'q' to Quit", (10, 30),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2)
-
-        cv2.imshow("HandsUp - Mediapipe Tracker (Frame Counter)", flipped_frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
