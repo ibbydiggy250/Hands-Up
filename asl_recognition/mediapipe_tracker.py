@@ -56,12 +56,14 @@ class MediapipeTracker:
             # ✅ No hands detected — pad both
             keypoints = [0.0] * (21 * 3 * 2)
 
-        # ================== Overlay Info ==================
+        # ================== Overlay Info (Bottom) ==================
         num_hands = len(results.multi_hand_landmarks) if results.multi_hand_landmarks else 0
-
-        # Create a semi-transparent rectangle behind the text for readability
+        h, w, _ = image_bgr.shape
         overlay = image_bgr.copy()
-        cv2.rectangle(overlay, (0, 0), (350, 110), (0, 0, 0), -1)
+
+        # Create semi-transparent rectangle at bottom
+        rect_height = 100
+        cv2.rectangle(overlay, (0, h - rect_height), (w, h), (0, 0, 0), -1)
         image_bgr = cv2.addWeighted(overlay, 0.4, image_bgr, 0.6, 0)
 
         # Text lines
@@ -71,8 +73,9 @@ class MediapipeTracker:
             "Press 'q' to Quit"
         ]
 
-        # Draw each line with spacing and outline
-        y0, dy = 40, 30
+        # Draw each line with spacing and outline near bottom
+        y0 = h - rect_height + 35
+        dy = 30
         for i, text in enumerate(lines):
             y = y0 + i * dy
             # Shadow (black outline)
