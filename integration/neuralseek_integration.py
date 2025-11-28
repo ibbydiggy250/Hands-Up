@@ -7,7 +7,7 @@ NEURALSEEK_URL = "https://api.neuralseek.com/v1/rephrase"
 
 def improve_sentence(raw_text: str) -> str:
     """
-    Sends the short ASL label to NeuralSeek and returns
+    Sends the short ASL label to NeuralSeek and retur
     a more natural English sentence.
     """
     if not NEURALSEEK_API_KEY:
